@@ -2,112 +2,138 @@
 #include <stdlib.h>
 #include <string.h>
 
-/*
-Estrutura da sala
-
-Cada sala possui:
-- nome: identificação do cômodo
-- esquerda: caminho à esquerda
-- direita: caminho à direita
-*/
-struct Sala
-{
+// Estrutura da sala (nó da árvore)
+struct Sala {
     char nome[50];
-    struct Sala *esquerda;
-    struct Sala *direita;
+    char pista[100]; 
+    struct Sala* esquerda;
+    struct Sala* direita;
 };
 
-// Cria uma nova sala (nó da árvore) com nome e sem filhos.
-struct Sala *criarSala(const char *nome)
-{
-    struct Sala *nova = (struct Sala *)malloc(sizeof(struct Sala));
+// Estrutura do nó para pistas
+struct NoPista {
+    char pista[100];
+    struct NoPista* esq;
+    struct NoPista* dir;
+};
 
-    if (nova == NULL)
-    {
+// Criar nova sala
+struct Sala* criarSala(const char* nome, const char* pista) {
+    struct Sala* nova = malloc(sizeof(struct Sala));
+
+    if (!nova) {
         printf("Erro de memoria!\n");
         exit(1);
     }
 
     strcpy(nova->nome, nome);
+    strcpy(nova->pista, pista);
+
     nova->esquerda = NULL;
     nova->direita = NULL;
 
     return nova;
 }
 
-/*
-Função para explorar a mansão (navegar pela árvore)
+// Criar novo nó de pista
+struct NoPista* criarNoPista(const char* pista) {
+    struct NoPista* novo = malloc(sizeof(struct NoPista));
 
-Permite ao jogador navegar pela árvore:
+    strcpy(novo->pista, pista);
+    novo->esq = NULL;
+    novo->dir = NULL;
 
-- 'e' -> esquerda
-- 'd' -> direita
+    return novo;
+}
 
-A exploração continua até chegar em um nó folha.
-*/
-void explorarMansao(struct Sala *atual)
-{
-    char opcao;
+// Inserir pista na BST
+struct NoPista* inserirPista(struct NoPista* raiz, const char* pista) {
+    if (raiz == NULL)
+        return criarNoPista(pista);
 
-    while (atual != NULL)
-    {
+    if (strcmp(pista, raiz->pista) < 0)
+        raiz->esq = inserirPista(raiz->esq, pista);
+    else if (strcmp(pista, raiz->pista) > 0)
+        raiz->dir = inserirPista(raiz->dir, pista);
+
+    return raiz;
+}
+
+// Mostrar pistas em ordem
+void mostrarPistas(struct NoPista* raiz) {
+    if (raiz != NULL) {
+        mostrarPistas(raiz->esq);
+        printf("- %s\n", raiz->pista);
+        mostrarPistas(raiz->dir);
+    }
+}
+
+//Exploração da mansão
+void explorar(struct Sala* atual, struct NoPista** pistasColetadas) {
+    char op;
+
+    while (atual != NULL) {
         printf("\nVoce esta em: %s\n", atual->nome);
 
-        // Se for folha → fim do jogo
-        if (atual->esquerda == NULL && atual->direita == NULL)
-        {
-            printf("Fim do caminho! Investigacao encerrada.\n");
-            break;
+        // Coleta pista automaticamente
+        if (strlen(atual->pista) > 0) {
+            printf("Pista encontrada: %s\n", atual->pista);
+            *pistasColetadas = inserirPista(*pistasColetadas, atual->pista);
         }
 
-        printf("Escolha o caminho (e = esquerda, d = direita): ");
-        scanf(" %c", &opcao);
+        printf("\n(e) esquerda | (d) direita | (s) sair\n");
+        scanf(" %c", &op);
 
-        if (opcao == 'e')
-        {
-            if (atual->esquerda != NULL)
+        if (op == 'e') {
+            if (atual->esquerda)
                 atual = atual->esquerda;
             else
-                printf("Nao ha caminho à esquerda!\n");
+                printf("Sem caminho à esquerda!\n");
         }
-        else if (opcao == 'd')
-        {
-            if (atual->direita != NULL)
+        else if (op == 'd') {
+            if (atual->direita)
                 atual = atual->direita;
             else
-                printf("Nao ha caminho à direita!\n");
+                printf("Sem caminho à direita!\n");
         }
-        else
-        {
+        else if (op == 's') {
+            break;
+        }
+        else {
             printf("Opcao invalida!\n");
         }
     }
 }
 
-int main()
-{
 
-    struct Sala *hall = criarSala("Hall");
-    struct Sala *salaEstar = criarSala("Sala de Estar");
-    struct Sala *cozinha = criarSala("Cozinha");
-    struct Sala *biblioteca = criarSala("Biblioteca");
-    struct Sala *escritorio = criarSala("Escritorio");
-    struct Sala *jardim = criarSala("Jardim");
+int main() {
 
-    // Ligando as salas (montando a árvore)
-    hall->esquerda = salaEstar;
+    struct Sala* hall = criarSala("Hall", "");
+    struct Sala* sala = criarSala("Sala de Estar", "Pegadas suspeitas");
+    struct Sala* cozinha = criarSala("Cozinha", "Faca desaparecida");
+    struct Sala* biblioteca = criarSala("Biblioteca", "Livro fora do lugar");
+    struct Sala* escritorio = criarSala("Escritorio", "Carta rasgada");
+    struct Sala* jardim = criarSala("Jardim", "Pegadas na lama");
+
+    // Montando árvore
+    hall->esquerda = sala;
     hall->direita = cozinha;
 
-    salaEstar->esquerda = biblioteca;
-    salaEstar->direita = escritorio;
+    sala->esquerda = biblioteca;
+    sala->direita = escritorio;
 
     cozinha->direita = jardim;
 
-    // Início do jogo
-    printf("=== Detective Quest ===\n");
-    printf("Explore a mansao e encontre pistas...\n");
+    // BST de pistas
+    struct NoPista* pistas = NULL;
 
-    explorarMansao(hall);
+    printf("=== Detective Quest: Coleta de Pistas ===\n");
+
+    explorar(hall, &pistas);
+
+    // Mostrar resultado final
+    printf("\n=== PISTAS COLETADAS (ORDENADAS) ===\n");
+    mostrarPistas(pistas);
 
     return 0;
 }
