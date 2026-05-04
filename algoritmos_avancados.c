@@ -2,54 +2,84 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Estrutura da sala (nó da árvore)
+#define TAM_HASH 10
+
+// Estrutura para representar cada sala do mapa
 struct Sala {
     char nome[50];
-    char pista[100]; 
-    struct Sala* esquerda;
-    struct Sala* direita;
+    char pista[100];
+    struct Sala* esq;
+    struct Sala* dir;
 };
 
-// Estrutura do nó para pistas
+// Estrutura para a BST de pistas
 struct NoPista {
     char pista[100];
     struct NoPista* esq;
     struct NoPista* dir;
 };
 
-// Criar nova sala
-struct Sala* criarSala(const char* nome, const char* pista) {
-    struct Sala* nova = malloc(sizeof(struct Sala));
+// Estrutura para a tabela hash (pista -> suspeito)
+struct Hash {
+    char pista[100];
+    char suspeito[50];
+    struct Hash* prox; // encadeamento
+};
 
-    if (!nova) {
-        printf("Erro de memoria!\n");
-        exit(1);
-    }
+struct Hash* tabela[TAM_HASH];
 
-    strcpy(nova->nome, nome);
-    strcpy(nova->pista, pista);
+// hash para armazenar pistas e suspeitos
 
-    nova->esquerda = NULL;
-    nova->direita = NULL;
-
-    return nova;
+// função hash simples
+int funcaoHash(const char* chave) {
+    int soma = 0;
+    for (int i = 0; chave[i] != '\0'; i++)
+        soma += chave[i];
+    return soma % TAM_HASH;
 }
 
-// Criar novo nó de pista
-struct NoPista* criarNoPista(const char* pista) {
-    struct NoPista* novo = malloc(sizeof(struct NoPista));
+// inserir na tabela hash
+void inserirHash(const char* pista, const char* suspeito) {
+    int idx = funcaoHash(pista);
 
+    struct Hash* novo = malloc(sizeof(struct Hash));
     strcpy(novo->pista, pista);
-    novo->esq = NULL;
-    novo->dir = NULL;
+    strcpy(novo->suspeito, suspeito);
 
-    return novo;
+    novo->prox = tabela[idx];
+    tabela[idx] = novo;
 }
 
-// Inserir pista na BST
+// buscar suspeito pela pista
+char* buscarSuspeito(const char* pista) {
+    int idx = funcaoHash(pista);
+
+    struct Hash* atual = tabela[idx];
+    while (atual != NULL) {
+        if (strcmp(atual->pista, pista) == 0)
+            return atual->suspeito;
+        atual = atual->prox;
+    }
+    return NULL;
+}
+
+// função para criar uma sala
+struct Sala* criarSala(const char* nome, const char* pista) {
+    struct Sala* s = malloc(sizeof(struct Sala));
+    strcpy(s->nome, nome);
+    strcpy(s->pista, pista);
+    s->esq = s->dir = NULL;
+    return s;
+}
+
+// inserir pista na BST
 struct NoPista* inserirPista(struct NoPista* raiz, const char* pista) {
-    if (raiz == NULL)
-        return criarNoPista(pista);
+    if (!raiz) {
+        struct NoPista* novo = malloc(sizeof(struct NoPista));
+        strcpy(novo->pista, pista);
+        novo->esq = novo->dir = NULL;
+        return novo;
+    }
 
     if (strcmp(pista, raiz->pista) < 0)
         raiz->esq = inserirPista(raiz->esq, pista);
@@ -59,81 +89,99 @@ struct NoPista* inserirPista(struct NoPista* raiz, const char* pista) {
     return raiz;
 }
 
-// Mostrar pistas em ordem
-void mostrarPistas(struct NoPista* raiz) {
-    if (raiz != NULL) {
-        mostrarPistas(raiz->esq);
+// mostrar pistas ordenadas
+void mostrarBST(struct NoPista* raiz) {
+    if (raiz) {
+        mostrarBST(raiz->esq);
         printf("- %s\n", raiz->pista);
-        mostrarPistas(raiz->dir);
+        mostrarBST(raiz->dir);
     }
 }
 
-//Exploração da mansão
-void explorar(struct Sala* atual, struct NoPista** pistasColetadas) {
+// explorar o mapa e coletar pistas
+void explorar(struct Sala* atual, struct NoPista** bst, int* cont, char pistasColetadas[][100]) {
     char op;
 
-    while (atual != NULL) {
-        printf("\nVoce esta em: %s\n", atual->nome);
+    while (atual) {
+        printf("\nSala: %s\n", atual->nome);
 
-        // Coleta pista automaticamente
         if (strlen(atual->pista) > 0) {
-            printf("Pista encontrada: %s\n", atual->pista);
-            *pistasColetadas = inserirPista(*pistasColetadas, atual->pista);
+            printf("Pista: %s\n", atual->pista);
+
+            *bst = inserirPista(*bst, atual->pista);
+            strcpy(pistasColetadas[*cont], atual->pista);
+            (*cont)++;
         }
 
-        printf("\n(e) esquerda | (d) direita | (s) sair\n");
+        printf("(e) esquerda | (d) direita | (s) sair: ");
         scanf(" %c", &op);
 
-        if (op == 'e') {
-            if (atual->esquerda)
-                atual = atual->esquerda;
-            else
-                printf("Sem caminho à esquerda!\n");
-        }
-        else if (op == 'd') {
-            if (atual->direita)
-                atual = atual->direita;
-            else
-                printf("Sem caminho à direita!\n");
-        }
-        else if (op == 's') {
-            break;
-        }
-        else {
-            printf("Opcao invalida!\n");
-        }
+        if (op == 'e') atual = atual->esq;
+        else if (op == 'd') atual = atual->dir;
+        else break;
     }
 }
 
 
 int main() {
 
+    // inicializar hash
+    for (int i = 0; i < TAM_HASH; i++)
+        tabela[i] = NULL;
+
+    // mapa
     struct Sala* hall = criarSala("Hall", "");
-    struct Sala* sala = criarSala("Sala de Estar", "Pegadas suspeitas");
-    struct Sala* cozinha = criarSala("Cozinha", "Faca desaparecida");
-    struct Sala* biblioteca = criarSala("Biblioteca", "Livro fora do lugar");
-    struct Sala* escritorio = criarSala("Escritorio", "Carta rasgada");
-    struct Sala* jardim = criarSala("Jardim", "Pegadas na lama");
+    struct Sala* sala = criarSala("Sala de Estar", "Pegadas");
+    struct Sala* cozinha = criarSala("Cozinha", "Faca");
+    struct Sala* biblioteca = criarSala("Biblioteca", "Livro rasgado");
+    struct Sala* escritorio = criarSala("Escritorio", "Carta");
+    struct Sala* jardim = criarSala("Jardim", "Terra");
 
-    // Montando árvore
-    hall->esquerda = sala;
-    hall->direita = cozinha;
+    hall->esq = sala;
+    hall->dir = cozinha;
 
-    sala->esquerda = biblioteca;
-    sala->direita = escritorio;
+    sala->esq = biblioteca;
+    sala->dir = escritorio;
 
-    cozinha->direita = jardim;
+    cozinha->dir = jardim;
 
-    // BST de pistas
-    struct NoPista* pistas = NULL;
+    // tabela hash (pista -> suspeito)
+    inserirHash("Pegadas", "Carlos");
+    inserirHash("Faca", "Ana");
+    inserirHash("Livro rasgado", "Carlos");
+    inserirHash("Carta", "Maria");
+    inserirHash("Terra", "Carlos");
 
-    printf("=== Detective Quest: Coleta de Pistas ===\n");
+    struct NoPista* bst = NULL;
 
-    explorar(hall, &pistas);
+    char pistasColetadas[20][100];
+    int total = 0;
 
-    // Mostrar resultado final
-    printf("\n=== PISTAS COLETADAS (ORDENADAS) ===\n");
-    mostrarPistas(pistas);
+    printf("=== Detective Quest FINAL ===\n");
+
+    explorar(hall, &bst, &total, pistasColetadas);
+
+    printf("\n=== PISTAS COLETADAS ===\n");
+    mostrarBST(bst);
+
+    // acusação
+    char suspeito[50];
+    printf("\nQuem é o culpado? ");
+    scanf("%s", suspeito);
+
+    int contador = 0;
+
+    for (int i = 0; i < total; i++) {
+        char* s = buscarSuspeito(pistasColetadas[i]);
+
+        if (s && strcmp(s, suspeito) == 0)
+            contador++;
+    }
+
+    if (contador >= 2)
+        printf("Acusacao correta! Evidencias suficientes.\n");
+    else
+        printf("Acusacao fraca! Poucas evidencias.\n");
 
     return 0;
 }
